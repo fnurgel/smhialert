@@ -14,6 +14,13 @@ sensor:
     district: '19'
     language: 'sv'
 
+Or don't display message level.
+sensor:
+  - platform: smhialert
+    district: '19'
+    language: 'sv'
+    include_messages: 'no'
+
 Available districts: See README.md
 
 """
@@ -39,6 +46,7 @@ _LOGGER = logging.getLogger(__name__)
 NAME = 'SMHIAlert'
 CONF_DISTRICT = 'district'
 CONF_LANGUAGE = 'language'
+CONF_INCLUDE_MESSAGES = 'include_messages'
 
 SCAN_INTERVAL = timedelta(minutes=5)
 
@@ -46,14 +54,16 @@ SCAN_INTERVAL = timedelta(minutes=5)
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NAME): cv.string,
     vol.Optional(CONF_DISTRICT, default='all'): cv.string,
-    vol.Optional(CONF_LANGUAGE, default='en'): cv.string
+    vol.Optional(CONF_LANGUAGE, default='en'): cv.string,
+    vol.Optional(CONF_INCLUDE_MESSAGES, default='yes'): cv.boolean
 })
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     district = config.get(CONF_DISTRICT)
     language = config.get(CONF_LANGUAGE)
-    api = SMHIAlert(district, language)
+    include_messages = config.get(CONF_INCLUDE_MESSAGES)
+    api = SMHIAlert(district, language, include_messages)
 
     add_entities([SMHIAlertSensor(api, NAME)], True)
 
@@ -93,9 +103,10 @@ class SMHIAlertSensor(Entity):
 
 
 class SMHIAlert:
-    def __init__(self, district, language):
+    def __init__(self, district, language, include_messages):
         self.district = district
         self.language = language
+        self.include_messages = include_messages
         self.attributes = {}
         self.attributes["messages"] = []
         self.attributes["notice"] = ""
@@ -139,6 +150,8 @@ class SMHIAlert:
                             validAreas.append(a[self.language])
 
                     if len(validAreas) == 0:
+                        continue
+                    if not self.include_messages and area["warningLevel"]["code"] == "MESSAGE":
                         continue
 
                     msg = {}
