@@ -52,7 +52,7 @@ SCAN_INTERVAL = timedelta(minutes=5)
 
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_NAME): cv.string,
+    vol.Optional(CONF_NAME, default=NAME): cv.string,
     vol.Optional(CONF_DISTRICT, default='all'): cv.string,
     vol.Optional(CONF_LANGUAGE, default='en'): cv.string,
     vol.Optional(CONF_INCLUDE_MESSAGES, default='yes'): cv.boolean
@@ -62,10 +62,11 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 def setup_platform(hass, config, add_entities, discovery_info=None):
     district = config.get(CONF_DISTRICT)
     language = config.get(CONF_LANGUAGE)
+    name = config.get(CONF_NAME)
     include_messages = config.get(CONF_INCLUDE_MESSAGES)
     api = SMHIAlert(district, language, include_messages)
 
-    add_entities([SMHIAlertSensor(api, NAME)], True)
+    add_entities([SMHIAlertSensor(api, name)], True)
 
 
 class SMHIAlertSensor(Entity):
@@ -158,7 +159,14 @@ class SMHIAlert:
                     msg["event"] = alert["event"][self.language]
 
                     msg["start"] = area["approximateStart"]
-                    msg["end"] = area["approximateEnd"]
+
+                    if "approximateEnd" in area:
+                        msg["end"] = area["approximateEnd"]
+                    elif self.language == 'en':
+                        msg["end"] = 'Unknown'
+                    else:
+                        msg["end"] = 'Okänt'
+
                     msg["published"] = area["published"]
 
                     msg["code"] = area["warningLevel"]["code"]
@@ -209,7 +217,10 @@ Beskrivning:
 
             self.available = True
             if notice != "":
-                self.data['state'] = 'Alert'
+                if self.language == 'en':
+                  self.data['state'] = "Alert"
+                else:
+                  self.data['state'] = "Varning"
                 self.attributes['messages'] = msgs
                 self.attributes['notice'] = notice
         except Exception as e:
